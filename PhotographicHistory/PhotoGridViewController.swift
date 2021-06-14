@@ -96,6 +96,7 @@ class PhotoGridViewController: UICollectionViewController {
 		self.init(fetchResult: fetchResult)
 		
 		navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Filter", style: .done, target: self, action: #selector(filterImages))
+		navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Show on Map", style: .done, target: self, action: #selector(showOnMap))
 	}
 	
 	required init?(coder: NSCoder) {
@@ -106,14 +107,33 @@ class PhotoGridViewController: UICollectionViewController {
 		remainingAssets = allAssets
 		filteredAssets = []
 		
-		filterNext()
+		for _ in 0..<10 {
+			filterNext()
+		}
+	}
+	
+	@objc func showOnMap() {
+		navigationController?.pushViewController(PhotoMapViewController(assets: filteredAssets), animated: false)
+	}
+	
+	func updateTitle() {
+		if remainingAssets.count > 0 {
+			title = "Filtering \(remainingAssets.count)/\(allAssets.count)"
+		} else if filteredAssets.count == allAssets.count {
+			title = "\(allAssets.count) Photos"
+		} else {
+			title = "\(filteredAssets.count) Filtered Photos"
+		}
 	}
 	
 	func filterNext() {
 		guard let asset = remainingAssets.popLast() else  {
 			print("done filtering")
+			updateTitle()
 			return
 		}
+		
+		updateTitle()
 		
 		analyze(asset: asset) { [weak self] result in
 			guard let self = self else {

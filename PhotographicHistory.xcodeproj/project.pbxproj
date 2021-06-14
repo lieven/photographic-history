@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CA58DF152677774000AD2738 /* PhotoMapViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA58DF142677774000AD2738 /* PhotoMapViewController.swift */; };
 		CAAAAF8C26774D1500B94422 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAAAAF8B26774D1500B94422 /* AppDelegate.swift */; };
 		CAAAAF8E26774D1500B94422 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAAAAF8D26774D1500B94422 /* SceneDelegate.swift */; };
 		CAAAAF9026774D1500B94422 /* PhotoGridViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAAAAF8F26774D1500B94422 /* PhotoGridViewController.swift */; };
@@ -15,6 +16,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		CA58DF142677774000AD2738 /* PhotoMapViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoMapViewController.swift; sourceTree = "<group>"; };
 		CAAAAF8826774D1500B94422 /* PhotographicHistory.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhotographicHistory.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CAAAAF8B26774D1500B94422 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		CAAAAF8D26774D1500B94422 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
@@ -60,6 +62,7 @@
 				CAAAAF9426774D1600B94422 /* Assets.xcassets */,
 				CAAAAF9626774D1600B94422 /* LaunchScreen.storyboard */,
 				CAAAAF9926774D1600B94422 /* Info.plist */,
+				CA58DF142677774000AD2738 /* PhotoMapViewController.swift */,
 			);
 			path = PhotographicHistory;
 			sourceTree = "<group>";
@@ -135,6 +138,7 @@
 			files = (
 				CAAAAF9026774D1500B94422 /* PhotoGridViewController.swift in Sources */,
 				CAAAAF8C26774D1500B94422 /* AppDelegate.swift in Sources */,
+				CA58DF152677774000AD2738 /* PhotoMapViewController.swift in Sources */,
 				CAAAAF8E26774D1500B94422 /* SceneDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

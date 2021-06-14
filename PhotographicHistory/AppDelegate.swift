@@ -15,7 +15,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 		// Override point for customization after application launch.
 		
 		let window = UIWindow(frame: UIScreen.main.bounds)
-		window.rootViewController = UINavigationController(rootViewController: ViewController())
+		window.rootViewController = UINavigationController(rootViewController: PhotoGridViewController())
 		
 		self.window = window
 		

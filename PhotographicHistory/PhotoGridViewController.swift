@@ -48,13 +48,21 @@ class PhotoCell: UICollectionViewCell {
 	}
 }
 
-class Photo {
+class Photo: Hashable {
+	static func == (lhs: Photo, rhs: Photo) -> Bool {
+		return lhs.asset.localIdentifier == rhs.asset.localIdentifier
+	}
+	
 	let asset: PHAsset
 	var classification: [VNClassificationObservation]?
 	var faces: [VNFaceObservation]?
 	
 	init(asset: PHAsset) {
 		self.asset = asset
+	}
+	
+	func hash(into hasher: inout Hasher) {
+		hasher.combine(asset.localIdentifier)
 	}
 }
 
@@ -171,15 +179,27 @@ class PhotoCollection {
 
 
 
-class PhotoGridViewController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate {
+class PhotoGridViewController: UIViewController, UICollectionViewDelegate {
+	enum Section {
+		case main
+	}
+	typealias DataSource = UICollectionViewDiffableDataSource<Section, Photo>
+	typealias Snapshot = NSDiffableDataSourceSnapshot<Section, Photo>
+
 	let collectionView: UICollectionView
 	
+	lazy var dataSource: DataSource = {
+		let dataSource = DataSource(
+			collectionView: collectionView,
+			cellProvider: { [weak self] (collectionView, indexPath, photo) -> UICollectionViewCell? in
+				return self?.provideCellFor(collectionView, indexPath: indexPath, photo: photo)
+			}
+		)
+		return dataSource
+	}()
+	
 	let photos: PhotoCollection
-	var filteredPhotos: [Photo] {
-		didSet {
-			collectionView.reloadData()
-		}
-	}
+	var filteredPhotos: [Photo]
 	
 	var isFiltered: Bool = false {
 		didSet {
@@ -228,6 +248,7 @@ class PhotoGridViewController: UIViewController, UICollectionViewDataSource, UIC
 		
 		photos.onUpdate = { [weak self] in
 			self?.reload()
+			self?.updateTitle()
 		}
 		updateTitle()
 	}
@@ -258,6 +279,11 @@ class PhotoGridViewController: UIViewController, UICollectionViewDataSource, UIC
 		} else {
 			filteredPhotos = photos.photos
 		}
+		
+		var snapshot = Snapshot()
+		snapshot.appendSections([.main])
+		snapshot.appendItems(filteredPhotos)
+		dataSource.apply(snapshot, animatingDifferences: true)
 	}
 	
 	@objc func filterImages() {
@@ -301,7 +327,7 @@ class PhotoGridViewController: UIViewController, UICollectionViewDataSource, UIC
 		
 		collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: PhotoCell.reuseIdentifier)
 		
-		collectionView.dataSource = self
+		collectionView.dataSource = dataSource
 		collectionView.delegate = self
 	}
 	
@@ -319,20 +345,12 @@ class PhotoGridViewController: UIViewController, UICollectionViewDataSource, UIC
         }
     }
 	
-	func numberOfSections(in collectionView: UICollectionView) -> Int {
-		return 1
-	}
-	
-	func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-		return filteredPhotos.count
-	}
-	
-	func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+	func provideCellFor(_ collectionView: UICollectionView, indexPath: IndexPath, photo: Photo) -> UICollectionViewCell {
 		guard let cell: PhotoCell = collectionView.dequeueReusableCell(withReuseIdentifier: PhotoCell.reuseIdentifier, for: indexPath) as? PhotoCell else {
 			fatalError("no cell?")
 		}
 		
-		let asset = filteredPhotos[indexPath.item].asset
+		let asset = photo.asset
 		
 		cell.imageView.alpha = asset.location == nil ? 0.5 : 1.0
         cell.currentAssetIdentifier = asset.localIdentifier

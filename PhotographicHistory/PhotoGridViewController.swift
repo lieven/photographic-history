@@ -52,6 +52,26 @@ class PhotoGridViewController: UICollectionViewController {
 	let allAssets: [PHAsset]
 	var remainingAssets: [PHAsset] = []
 	
+	var isFiltered: Bool = false {
+		didSet {
+			guard oldValue != isFiltered else {
+				return
+			}
+			if isFiltered {
+				remainingAssets = allAssets
+				filteredAssets = []
+				
+				for _ in 0..<10 {
+					filterNext()
+				}
+			} else {
+				remainingAssets = []
+				filteredAssets = allAssets
+			}
+			updateTitle()
+		}
+	}
+	
 	var filteredAssets: [PHAsset] {
 		didSet {
 			collectionView.reloadData()
@@ -83,12 +103,10 @@ class PhotoGridViewController: UICollectionViewController {
 	init(assets: [PHAsset]) {
 		self.allAssets = assets
 		self.filteredAssets = assets
+		
 		super.init(collectionViewLayout: layout)
 		
-		navigationItem.rightBarButtonItems = [
-			UIBarButtonItem(title: "Filter", style: .done, target: self, action: #selector(filterImages)),
-			UIBarButtonItem(title: "Show on Map", style: .done, target: self, action: #selector(showOnMap))
-		]
+		updateTitle()
 	}
 	
 	convenience init() {
@@ -106,12 +124,11 @@ class PhotoGridViewController: UICollectionViewController {
 	}
 	
 	@objc func filterImages() {
-		remainingAssets = allAssets
-		filteredAssets = []
-		
-		for _ in 0..<10 {
-			filterNext()
-		}
+		isFiltered = true
+	}
+	
+	@objc func showAllImages() {
+		isFiltered = false
 	}
 	
 	@objc func showOnMap() {
@@ -119,12 +136,23 @@ class PhotoGridViewController: UICollectionViewController {
 	}
 	
 	func updateTitle() {
-		if remainingAssets.count > 0 {
-			title = "Filtering \(remainingAssets.count)/\(allAssets.count)"
-		} else if filteredAssets.count == allAssets.count {
-			title = "\(allAssets.count) Photos"
+		if isFiltered {
+			if remainingAssets.count > 0 {
+				title = "Filtering \(remainingAssets.count)/\(allAssets.count)"
+			} else {
+				title = "\(filteredAssets.count) Filtered Photos"
+			}
+			navigationItem.rightBarButtonItems = [
+				UIBarButtonItem(title: "Show All", style: .plain, target: self, action: #selector(showAllImages)),
+				UIBarButtonItem(title: "Map View", style: .plain, target: self, action: #selector(showOnMap))
+			]
+			
 		} else {
-			title = "\(filteredAssets.count) Filtered Photos"
+			title = "\(allAssets.count) Photos"
+			navigationItem.rightBarButtonItems = [
+				UIBarButtonItem(title: "Filter", style: .plain, target: self, action: #selector(filterImages)),
+				UIBarButtonItem(title: "Map View", style: .plain, target: self, action: #selector(showOnMap))
+			]
 		}
 	}
 	

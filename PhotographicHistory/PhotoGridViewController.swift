@@ -84,6 +84,11 @@ class PhotoGridViewController: UICollectionViewController {
 		self.allAssets = assets
 		self.filteredAssets = assets
 		super.init(collectionViewLayout: layout)
+		
+		navigationItem.rightBarButtonItems = [
+			UIBarButtonItem(title: "Filter", style: .done, target: self, action: #selector(filterImages)),
+			UIBarButtonItem(title: "Show on Map", style: .done, target: self, action: #selector(showOnMap))
+		]
 	}
 	
 	convenience init() {
@@ -94,9 +99,6 @@ class PhotoGridViewController: UICollectionViewController {
 		let fetchResult = PHAsset.fetchAssets(with: options)
 		
 		self.init(fetchResult: fetchResult)
-		
-		navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Filter", style: .done, target: self, action: #selector(filterImages))
-		navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Show on Map", style: .done, target: self, action: #selector(showOnMap))
 	}
 	
 	required init?(coder: NSCoder) {

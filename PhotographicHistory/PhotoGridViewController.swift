@@ -171,7 +171,9 @@ class PhotoCollection {
 
 
 
-class PhotoGridViewController: UICollectionViewController {
+class PhotoGridViewController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate {
+	let collectionView: UICollectionView
+	
 	let photos: PhotoCollection
 	var filteredPhotos: [Photo] {
 		didSet {
@@ -220,7 +222,9 @@ class PhotoGridViewController: UICollectionViewController {
 		self.imageManager = imageManager
 		self.filteredPhotos = allPhotos
 		
-		super.init(collectionViewLayout: layout)
+		self.collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
+		
+		super.init(nibName: nil, bundle: nil)
 		
 		photos.onUpdate = { [weak self] in
 			self?.reload()
@@ -285,6 +289,10 @@ class PhotoGridViewController: UICollectionViewController {
 		}
 	}
 	
+	override func loadView() {
+		self.view = collectionView
+	}
+	
 	
 	override func viewDidLoad() {
 		super.viewDidLoad()
@@ -292,6 +300,9 @@ class PhotoGridViewController: UICollectionViewController {
 		collectionView.backgroundColor = .white
 		
 		collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: PhotoCell.reuseIdentifier)
+		
+		collectionView.dataSource = self
+		collectionView.delegate = self
 	}
 	
 	override func viewWillLayoutSubviews() {
@@ -308,15 +319,15 @@ class PhotoGridViewController: UICollectionViewController {
         }
     }
 	
-	override func numberOfSections(in collectionView: UICollectionView) -> Int {
+	func numberOfSections(in collectionView: UICollectionView) -> Int {
 		return 1
 	}
 	
-	override func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+	func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
 		return filteredPhotos.count
 	}
 	
-	override func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+	func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
 		guard let cell: PhotoCell = collectionView.dequeueReusableCell(withReuseIdentifier: PhotoCell.reuseIdentifier, for: indexPath) as? PhotoCell else {
 			fatalError("no cell?")
 		}
@@ -337,7 +348,7 @@ class PhotoGridViewController: UICollectionViewController {
 		return cell
 	}
 	
-	override func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+	func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
 		let photo = filteredPhotos[indexPath.item]
 		let result = photo.check()
 		

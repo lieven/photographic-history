@@ -11,6 +11,7 @@ import Vision
 
 enum HistoricPhotoMatch {
 	enum NoMatchReasons: String {
+		case notAnalyzed
 		case noLocation
 		case containsPeople
 		case notOutdoors
@@ -47,38 +48,148 @@ class PhotoCell: UICollectionViewCell {
 	}
 }
 
+class Photo {
+	let asset: PHAsset
+	var classification: [VNClassificationObservation]?
+	var faces: [VNFaceObservation]?
+	
+	init(asset: PHAsset) {
+		self.asset = asset
+	}
+}
+
+class PhotoCollection {
+	let photos: [Photo]
+	var photosToAnalyze: [Photo]
+	let imageManager: PHCachingImageManager
+	
+	var onUpdate: (() -> Void)?
+	
+	var isAnalyzing: Bool {
+		return photosToAnalyze.count > 0
+	}
+	
+	init(photos: [Photo], imageManager: PHCachingImageManager) {
+		self.photos = photos
+		self.photosToAnalyze = photos.reversed()
+		self.imageManager = imageManager
+		
+		analyzeNext()
+	}
+	
+	func analyzeNext() {
+		guard let nextPhoto = photosToAnalyze.popLast() else {
+			return
+		}
+		
+		analyze(photo: nextPhoto) { [weak self] in
+			self?.onUpdate?()
+			self?.analyzeNext()
+		}
+	}
+	
+	func analyze(photo: Photo, completion: @escaping () -> Void) {
+		guard photo.asset.location != nil else {
+			photo.classification = []
+			photo.faces = []
+			completion()
+			return
+		}
+		
+		let options = PHImageRequestOptions()
+		options.resizeMode = .none
+		options.isNetworkAccessAllowed = true
+		
+		print("Requesting image...")
+		imageManager.requestImageDataAndOrientation(for: photo.asset, options: options) { [weak self] (data, _, orientation, _) in
+			guard let data = data else {
+				print("Couldn't get image")
+				return
+			}
+			
+			print("Analyzing image...")
+			
+			self?.analyzeImage(photo: photo, data: data, orientation: orientation, completion: completion)
+		}
+	}
+	
+	func analyzeImage(photo: Photo, data: Data, orientation: CGImagePropertyOrientation, completion: @escaping () -> Void) {
+		let imageRequestHandler = VNImageRequestHandler(data: data, orientation: orientation, options: [:])
+		
+		let group = DispatchGroup()
+		
+		group.enter()
+		let classificationRequest = VNClassifyImageRequest { (request, error) in
+			defer {
+				group.leave()
+			}
+			
+			guard let observations = request.results as? [VNClassificationObservation] else {
+				print("no observations?")
+				photo.classification = []
+				return
+			}
+			
+			let confidentObservations = observations.filter {
+				$0.hasMinimumRecall(0.0, forPrecision: 0.9)
+			}
+			
+			print("Confident observations:")
+			for observation in confidentObservations {
+				print("- \(observation.identifier)")
+			}
+			print("")
+			
+			photo.classification = confidentObservations
+		}
+		
+		group.enter()
+		let facesRequest = VNDetectFaceRectanglesRequest { (request, error) in
+			defer {
+				group.leave()
+			}
+			
+			guard let faceObservations = request.results as? [VNFaceObservation] else {
+				print("no face observations?")
+				photo.faces = []
+					
+				return
+			}
+			
+			photo.faces = faceObservations // FIXME .filter { $0.confidence > 0.1 }
+		}
+		
+		do {
+			try imageRequestHandler.perform([classificationRequest, facesRequest])
+		} catch {
+			print("Error performing classification request: \(error.localizedDescription)")
+		}
+		
+		group.notify(queue: .main, execute: completion)
+	}
+}
+
+
 
 class PhotoGridViewController: UICollectionViewController {
-	let allAssets: [PHAsset]
-	var remainingAssets: [PHAsset] = []
+	let photos: PhotoCollection
+	var filteredPhotos: [Photo] {
+		didSet {
+			collectionView.reloadData()
+		}
+	}
 	
 	var isFiltered: Bool = false {
 		didSet {
 			guard oldValue != isFiltered else {
 				return
 			}
-			if isFiltered {
-				remainingAssets = allAssets
-				filteredAssets = []
-				
-				for _ in 0..<10 {
-					filterNext()
-				}
-			} else {
-				remainingAssets = []
-				filteredAssets = allAssets
-			}
+			reload()
 			updateTitle()
 		}
 	}
 	
-	var filteredAssets: [PHAsset] {
-		didSet {
-			collectionView.reloadData()
-		}
-	}
-	
-	let imageManager = PHCachingImageManager()
+	let imageManager: PHCachingImageManager
 	var availableWidth: CGFloat = 0.0
 	
 	static let minThumbnailSize: CGFloat = 100.0
@@ -101,11 +212,19 @@ class PhotoGridViewController: UICollectionViewController {
 	}
 	
 	init(assets: [PHAsset]) {
-		self.allAssets = assets
-		self.filteredAssets = assets
+		let imageManager = PHCachingImageManager()
+		let allPhotos = assets.map { Photo(asset: $0) }
+		let photos = PhotoCollection(photos: allPhotos, imageManager: imageManager)
+		
+		self.photos = photos
+		self.imageManager = imageManager
+		self.filteredPhotos = allPhotos
 		
 		super.init(collectionViewLayout: layout)
 		
+		photos.onUpdate = { [weak self] in
+			self?.reload()
+		}
 		updateTitle()
 	}
 	
@@ -123,6 +242,20 @@ class PhotoGridViewController: UICollectionViewController {
 		fatalError("init(coder:) has not been implemented")
 	}
 	
+	func reload() {
+		if isFiltered {
+			filteredPhotos = photos.photos.filter {
+				if case .matches = $0.check() {
+					return true
+				} else {
+					return false
+				}
+			}
+		} else {
+			filteredPhotos = photos.photos
+		}
+	}
+	
 	@objc func filterImages() {
 		isFiltered = true
 	}
@@ -132,23 +265,19 @@ class PhotoGridViewController: UICollectionViewController {
 	}
 	
 	@objc func showOnMap() {
-		navigationController?.pushViewController(PhotoMapViewController(assets: filteredAssets), animated: false)
+		navigationController?.pushViewController(PhotoMapViewController(assets: filteredPhotos.map { $0.asset }), animated: false)
 	}
 	
 	func updateTitle() {
 		if isFiltered {
-			if remainingAssets.count > 0 {
-				title = "Filtering \(remainingAssets.count)/\(allAssets.count)"
-			} else {
-				title = "\(filteredAssets.count) Filtered Photos"
-			}
+			title = "\(filteredPhotos.count) Filtered Photos"
 			navigationItem.rightBarButtonItems = [
 				UIBarButtonItem(title: "Show All", style: .plain, target: self, action: #selector(showAllImages)),
 				UIBarButtonItem(title: "Map View", style: .plain, target: self, action: #selector(showOnMap))
 			]
 			
 		} else {
-			title = "\(allAssets.count) Photos"
+			title = "\(filteredPhotos.count) Photos"
 			navigationItem.rightBarButtonItems = [
 				UIBarButtonItem(title: "Filter", style: .plain, target: self, action: #selector(filterImages)),
 				UIBarButtonItem(title: "Map View", style: .plain, target: self, action: #selector(showOnMap))
@@ -156,31 +285,6 @@ class PhotoGridViewController: UICollectionViewController {
 		}
 	}
 	
-	func filterNext() {
-		guard let asset = remainingAssets.popLast() else  {
-			print("done filtering")
-			updateTitle()
-			return
-		}
-		
-		updateTitle()
-		
-		analyze(asset: asset) { [weak self] result in
-			guard let self = self else {
-				return
-			}
-			
-			switch result {
-			case .matches:
-				self.filteredAssets.append(asset)
-			case .noMatch(let reasons):
-				print("hiding image because of \(reasons.map({$0.rawValue}).joined(separator: ", "))")
-				break
-			}
-			
-			self.filterNext()
-		}
-	}
 	
 	override func viewDidLoad() {
 		super.viewDidLoad()
@@ -209,7 +313,7 @@ class PhotoGridViewController: UICollectionViewController {
 	}
 	
 	override func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-		return filteredAssets.count
+		return filteredPhotos.count
 	}
 	
 	override func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
@@ -217,7 +321,7 @@ class PhotoGridViewController: UICollectionViewController {
 			fatalError("no cell?")
 		}
 		
-		let asset = filteredAssets[indexPath.item]
+		let asset = filteredPhotos[indexPath.item].asset
 		
 		cell.imageView.alpha = asset.location == nil ? 0.5 : 1.0
         cell.currentAssetIdentifier = asset.localIdentifier
@@ -234,102 +338,59 @@ class PhotoGridViewController: UICollectionViewController {
 	}
 	
 	override func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+		let photo = filteredPhotos[indexPath.item]
+		let result = photo.check()
 		
+		var message = "Asset "
+		switch result {
+		case .matches:
+			message.append("matches!")
+		case .noMatch(let reasons):
+			message.append("does not match:\n")
+			for reason in reasons {
+				message.append("- ")
+				message.append(reason.rawValue)
+			}
+		}
 		
-		let asset = filteredAssets[indexPath.item]
-		analyze(asset: asset) { [weak self] result in
-			var message = "Asset "
-			switch result {
-			case .matches:
-				message.append("matches!")
-			case .noMatch(let reasons):
-				message.append("does not match:\n")
-				for reason in reasons {
-					message.append("- ")
-					message.append(reason.rawValue)
+		let alert = UIAlertController(title: "Photo", message: message, preferredStyle: .alert)
+		alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+		present(alert, animated: true, completion: nil)
+	}
+}
+
+extension Photo {
+	func check() -> HistoricPhotoMatch {
+		var reasons = [HistoricPhotoMatch.NoMatchReasons]()
+		
+		if let observations = classification {
+			let containsPeople = observations.contains { $0.identifier == "people" }
+			if containsPeople {
+				if let faces = faces {
+					if faces.count > 0 {
+						reasons.append(.containsPeople)
+					}
+				} else {
+					reasons.append(.containsPeople)
 				}
 			}
 			
-			let alert = UIAlertController(title: "Photo", message: message, preferredStyle: .alert)
-			alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
-			self?.present(alert, animated: true, completion: nil)
-		}
-	}
-	
-	func analyze(asset: PHAsset, completion: @escaping (HistoricPhotoMatch) -> Void) {
-		guard asset.location != nil else {
-			completion(.noMatch([.noLocation]))
-			return
-		}
-		
-		let options = PHImageRequestOptions()
-		options.resizeMode = .none
-		options.isNetworkAccessAllowed = true
-		
-		print("Requesting image...")
-		imageManager.requestImageDataAndOrientation(for: asset, options: options) { [weak self] (data, _, orientation, _) in
-			guard let data = data else {
-				print("Couldn't get image")
-				return
+			let isOutdoors = observations.contains { $0.identifier == "outdoor" }
+			if !isOutdoors {
+				reasons.append(.notOutdoors)
 			}
-			
-			print("Analyzing image...")
-			
-			self?.analyzeImage(data: data, orientation: orientation, completion: completion)
-		}
-	}
-	
-	func analyzeImage(data: Data, orientation: CGImagePropertyOrientation, completion: @escaping (HistoricPhotoMatch) -> Void) {
-		let imageRequestHandler = VNImageRequestHandler(data: data, orientation: orientation, options: [:])
-		
-		let classificationRequest = VNClassifyImageRequest { [weak self] (request, error) in
-			guard let observations = request.results as? [VNClassificationObservation] else {
-				print("no observations?")
-				return
+			let isDocument = observations.contains { $0.identifier == "document" }
+			if isDocument {
+				reasons.append(.isDocument)
 			}
-			
-			let confidentObservations = observations.filter {
-				$0.hasMinimumRecall(0.0, forPrecision: 0.9)
-			}
-			
-			print("Confident observations:")
-			for observation in confidentObservations {
-				print("- \(observation.identifier)")
-			}
-			print("")
-			
-			self?.check(observations: confidentObservations, completion: completion)
-		}
-		
-		do {
-			try imageRequestHandler.perform([classificationRequest])
-		} catch {
-			print("Error performing classification request: \(error.localizedDescription)")
-		}
-	}
-	
-	func check(observations: [VNClassificationObservation], completion: @escaping (HistoricPhotoMatch) -> Void) {
-		var reasons = [HistoricPhotoMatch.NoMatchReasons]()
-		
-		let containsPeople = observations.contains { $0.identifier == "people" }
-		if containsPeople {
-			// TODO: use Vision framework to see if their faces are recognizable
-			reasons.append(.containsPeople)
-		}
-		
-		let isOutdoors = observations.contains { $0.identifier == "outdoor" }
-		if !isOutdoors {
-			reasons.append(.notOutdoors)
-		}
-		let isDocument = observations.contains { $0.identifier == "document" }
-		if isDocument {
-			reasons.append(.isDocument)
+		} else {
+			reasons.append(.notAnalyzed)
 		}
 		
 		if reasons.count > 0 {
-			completion(.noMatch(reasons))
+			return .noMatch(reasons)
 		} else {
-			completion(.matches)
+			return .matches
 		}
 	}
 }

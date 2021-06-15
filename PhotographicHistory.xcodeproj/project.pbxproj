@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CA13D6572677AC5500615572 /* PhotoGridCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA13D6562677AC5500615572 /* PhotoGridCell.swift */; };
+		CA13D65A2677AC7900615572 /* Photo.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA13D6592677AC7900615572 /* Photo.swift */; };
+		CA13D65D2677AC9400615572 /* PhotoCollection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA13D65C2677AC9400615572 /* PhotoCollection.swift */; };
 		CA58DF152677774000AD2738 /* PhotoMapViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA58DF142677774000AD2738 /* PhotoMapViewController.swift */; };
 		CA58DF192677812200AD2738 /* CollectionsTableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA58DF182677812200AD2738 /* CollectionsTableViewController.swift */; };
 		CAAAAF8C26774D1500B94422 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAAAAF8B26774D1500B94422 /* AppDelegate.swift */; };
@@ -17,6 +20,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		CA13D6562677AC5500615572 /* PhotoGridCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoGridCell.swift; sourceTree = "<group>"; };
+		CA13D6592677AC7900615572 /* Photo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Photo.swift; sourceTree = "<group>"; };
+		CA13D65C2677AC9400615572 /* PhotoCollection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoCollection.swift; sourceTree = "<group>"; };
 		CA58DF142677774000AD2738 /* PhotoMapViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoMapViewController.swift; sourceTree = "<group>"; };
 		CA58DF182677812200AD2738 /* CollectionsTableViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionsTableViewController.swift; sourceTree = "<group>"; };
 		CAAAAF8826774D1500B94422 /* PhotographicHistory.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhotographicHistory.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -59,13 +65,16 @@
 			isa = PBXGroup;
 			children = (
 				CAAAAF8B26774D1500B94422 /* AppDelegate.swift */,
-				CAAAAF8D26774D1500B94422 /* SceneDelegate.swift */,
-				CAAAAF8F26774D1500B94422 /* PhotoGridViewController.swift */,
 				CAAAAF9426774D1600B94422 /* Assets.xcassets */,
-				CAAAAF9626774D1600B94422 /* LaunchScreen.storyboard */,
-				CAAAAF9926774D1600B94422 /* Info.plist */,
-				CA58DF142677774000AD2738 /* PhotoMapViewController.swift */,
 				CA58DF182677812200AD2738 /* CollectionsTableViewController.swift */,
+				CAAAAF9926774D1600B94422 /* Info.plist */,
+				CAAAAF9626774D1600B94422 /* LaunchScreen.storyboard */,
+				CA13D6592677AC7900615572 /* Photo.swift */,
+				CA13D65C2677AC9400615572 /* PhotoCollection.swift */,
+				CA13D6562677AC5500615572 /* PhotoGridCell.swift */,
+				CAAAAF8F26774D1500B94422 /* PhotoGridViewController.swift */,
+				CA58DF142677774000AD2738 /* PhotoMapViewController.swift */,
+				CAAAAF8D26774D1500B94422 /* SceneDelegate.swift */,
 			);
 			path = PhotographicHistory;
 			sourceTree = "<group>";
@@ -139,10 +148,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CA13D65A2677AC7900615572 /* Photo.swift in Sources */,
 				CAAAAF9026774D1500B94422 /* PhotoGridViewController.swift in Sources */,
 				CAAAAF8C26774D1500B94422 /* AppDelegate.swift in Sources */,
 				CA58DF152677774000AD2738 /* PhotoMapViewController.swift in Sources */,
 				CAAAAF8E26774D1500B94422 /* SceneDelegate.swift in Sources */,
+				CA13D6572677AC5500615572 /* PhotoGridCell.swift in Sources */,
+				CA13D65D2677AC9400615572 /* PhotoCollection.swift in Sources */,
 				CA58DF192677812200AD2738 /* CollectionsTableViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

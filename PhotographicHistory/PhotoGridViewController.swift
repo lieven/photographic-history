@@ -23,162 +23,6 @@ enum HistoricPhotoMatch {
 }
 
 
-class PhotoCell: UICollectionViewCell {
-	static let reuseIdentifier = "PhotoCell"
-	
-	let imageView: UIImageView = {
-		let imageView = UIImageView()
-		imageView.contentMode = .scaleAspectFill
-		imageView.clipsToBounds = true
-		imageView.backgroundColor = .lightGray
-		imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-		return imageView
-	}()
-	
-	var currentAssetIdentifier: String?
-	
-	override init(frame: CGRect) {
-		super.init(frame: frame)
-		imageView.frame = contentView.bounds
-		contentView.addSubview(imageView)
-	}
-	
-	required init?(coder: NSCoder) {
-		fatalError("init(coder:) has not been implemented")
-	}
-}
-
-class Photo: Hashable {
-	static func == (lhs: Photo, rhs: Photo) -> Bool {
-		return lhs.asset.localIdentifier == rhs.asset.localIdentifier
-	}
-	
-	let asset: PHAsset
-	var classification: [VNClassificationObservation]?
-	var faces: [VNFaceObservation]?
-	
-	init(asset: PHAsset) {
-		self.asset = asset
-	}
-	
-	func hash(into hasher: inout Hasher) {
-		hasher.combine(asset.localIdentifier)
-	}
-}
-
-class PhotoCollection {
-	let photos: [Photo]
-	var photosToAnalyze: [Photo]
-	let imageManager: PHCachingImageManager
-	
-	var onUpdate: (() -> Void)?
-	
-	var isAnalyzing: Bool {
-		return photosToAnalyze.count > 0
-	}
-	
-	init(photos: [Photo], imageManager: PHCachingImageManager) {
-		self.photos = photos
-		self.photosToAnalyze = photos.reversed()
-		self.imageManager = imageManager
-		
-		analyzeNext()
-	}
-	
-	func analyzeNext() {
-		guard let nextPhoto = photosToAnalyze.popLast() else {
-			return
-		}
-		
-		analyze(photo: nextPhoto) { [weak self] in
-			self?.onUpdate?()
-			self?.analyzeNext()
-		}
-	}
-	
-	func analyze(photo: Photo, completion: @escaping () -> Void) {
-		guard photo.asset.location != nil else {
-			photo.classification = []
-			photo.faces = []
-			completion()
-			return
-		}
-		
-		let options = PHImageRequestOptions()
-		options.resizeMode = .none
-		options.isNetworkAccessAllowed = true
-		
-		print("Requesting image...")
-		imageManager.requestImageDataAndOrientation(for: photo.asset, options: options) { [weak self] (data, _, orientation, _) in
-			guard let data = data else {
-				print("Couldn't get image")
-				return
-			}
-			
-			print("Analyzing image...")
-			
-			self?.analyzeImage(photo: photo, data: data, orientation: orientation, completion: completion)
-		}
-	}
-	
-	func analyzeImage(photo: Photo, data: Data, orientation: CGImagePropertyOrientation, completion: @escaping () -> Void) {
-		let imageRequestHandler = VNImageRequestHandler(data: data, orientation: orientation, options: [:])
-		
-		let group = DispatchGroup()
-		
-		group.enter()
-		let classificationRequest = VNClassifyImageRequest { (request, error) in
-			defer {
-				group.leave()
-			}
-			
-			guard let observations = request.results as? [VNClassificationObservation] else {
-				print("no observations?")
-				photo.classification = []
-				return
-			}
-			
-			let confidentObservations = observations.filter {
-				$0.hasMinimumRecall(0.0, forPrecision: 0.9)
-			}
-			
-			print("Confident observations:")
-			for observation in confidentObservations {
-				print("- \(observation.identifier)")
-			}
-			print("")
-			
-			photo.classification = confidentObservations
-		}
-		
-		group.enter()
-		let facesRequest = VNDetectFaceRectanglesRequest { (request, error) in
-			defer {
-				group.leave()
-			}
-			
-			guard let faceObservations = request.results as? [VNFaceObservation] else {
-				print("no face observations?")
-				photo.faces = []
-					
-				return
-			}
-			
-			photo.faces = faceObservations // FIXME .filter { $0.confidence > 0.1 }
-		}
-		
-		do {
-			try imageRequestHandler.perform([classificationRequest, facesRequest])
-		} catch {
-			print("Error performing classification request: \(error.localizedDescription)")
-		}
-		
-		group.notify(queue: .main, execute: completion)
-	}
-}
-
-
-
 class PhotoGridViewController: UIViewController, UICollectionViewDelegate {
 	enum Section {
 		case main
@@ -208,6 +52,13 @@ class PhotoGridViewController: UIViewController, UICollectionViewDelegate {
 			}
 			reload()
 			updateTitle()
+			updateNavigationItems()
+		}
+	}
+	
+	var allowUnrecognizablePeople: Bool = false {
+		didSet {
+			reload()
 		}
 	}
 	
@@ -246,11 +97,13 @@ class PhotoGridViewController: UIViewController, UICollectionViewDelegate {
 		
 		super.init(nibName: nil, bundle: nil)
 		
+		updateTitle()
+		updateNavigationItems()
+		
 		photos.onUpdate = { [weak self] in
 			self?.reload()
 			self?.updateTitle()
 		}
-		updateTitle()
 	}
 	
 	convenience init() {
@@ -270,7 +123,7 @@ class PhotoGridViewController: UIViewController, UICollectionViewDelegate {
 	func reload() {
 		if isFiltered {
 			filteredPhotos = photos.photos.filter {
-				if case .matches = $0.check() {
+				if case .matches = $0.check(allowUnrecognizablePeople: allowUnrecognizablePeople) {
 					return true
 				} else {
 					return false
@@ -299,15 +152,28 @@ class PhotoGridViewController: UIViewController, UICollectionViewDelegate {
 	}
 	
 	func updateTitle() {
+		var title: String
 		if isFiltered {
 			title = "\(filteredPhotos.count) Filtered Photos"
+		} else {
+			title = "\(filteredPhotos.count) Photos"
+		}
+		
+		if photos.isAnalyzing {
+			title.append(" - Analyzing \(photos.photosToAnalyze.count) of \(photos.photos.count)")
+		}
+		
+		self.title = title
+	}
+	
+	func updateNavigationItems() {
+		if isFiltered {
 			navigationItem.rightBarButtonItems = [
 				UIBarButtonItem(title: "Show All", style: .plain, target: self, action: #selector(showAllImages)),
 				UIBarButtonItem(title: "Map View", style: .plain, target: self, action: #selector(showOnMap))
 			]
 			
 		} else {
-			title = "\(filteredPhotos.count) Photos"
 			navigationItem.rightBarButtonItems = [
 				UIBarButtonItem(title: "Filter", style: .plain, target: self, action: #selector(filterImages)),
 				UIBarButtonItem(title: "Map View", style: .plain, target: self, action: #selector(showOnMap))
@@ -325,10 +191,12 @@ class PhotoGridViewController: UIViewController, UICollectionViewDelegate {
 		collectionView.insetsLayoutMarginsFromSafeArea = true
 		collectionView.backgroundColor = .white
 		
-		collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: PhotoCell.reuseIdentifier)
+		collectionView.register(PhotoGridCell.self, forCellWithReuseIdentifier: PhotoGridCell.reuseIdentifier)
 		
 		collectionView.dataSource = dataSource
 		collectionView.delegate = self
+		
+		reload()
 	}
 	
 	override func viewWillLayoutSubviews() {
@@ -346,7 +214,7 @@ class PhotoGridViewController: UIViewController, UICollectionViewDelegate {
     }
 	
 	func provideCellFor(_ collectionView: UICollectionView, indexPath: IndexPath, photo: Photo) -> UICollectionViewCell {
-		guard let cell: PhotoCell = collectionView.dequeueReusableCell(withReuseIdentifier: PhotoCell.reuseIdentifier, for: indexPath) as? PhotoCell else {
+		guard let cell: PhotoGridCell = collectionView.dequeueReusableCell(withReuseIdentifier: PhotoGridCell.reuseIdentifier, for: indexPath) as? PhotoGridCell else {
 			fatalError("no cell?")
 		}
 		
@@ -368,17 +236,25 @@ class PhotoGridViewController: UIViewController, UICollectionViewDelegate {
 	
 	func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
 		let photo = filteredPhotos[indexPath.item]
-		let result = photo.check()
+		let result = photo.check(allowUnrecognizablePeople: true)
 		
 		var message = "Asset "
 		switch result {
 		case .matches:
 			message.append("matches!")
 		case .noMatch(let reasons):
-			message.append("does not match:\n")
+			message.append("does not match:")
 			for reason in reasons {
-				message.append("- ")
+				message.append("\n- ")
 				message.append(reason.rawValue)
+			}
+		}
+		
+		if let observations = photo.classification {
+			message.append("\n\nclassification:")
+			for observation in observations {
+				message.append("\n- ")
+				message.append(observation.identifier)
 			}
 		}
 		
@@ -389,13 +265,13 @@ class PhotoGridViewController: UIViewController, UICollectionViewDelegate {
 }
 
 extension Photo {
-	func check() -> HistoricPhotoMatch {
+	func check(allowUnrecognizablePeople: Bool) -> HistoricPhotoMatch {
 		var reasons = [HistoricPhotoMatch.NoMatchReasons]()
 		
 		if let observations = classification {
 			let containsPeople = observations.contains { $0.identifier == "people" }
 			if containsPeople {
-				if let faces = faces {
+				if allowUnrecognizablePeople, let faces = faces {
 					if faces.count > 0 {
 						reasons.append(.containsPeople)
 					}

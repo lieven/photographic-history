@@ -118,6 +118,7 @@ class PhotoMapViewController: UIViewController, MKMapViewDelegate {
 		mapView.delegate = self
 		
 		mapView.addAnnotations(assets.compactMap { PhotoAnnotation(asset: $0) })
+	
 	}
 	
 	func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
